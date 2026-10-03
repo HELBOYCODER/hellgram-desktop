@@ -1,37 +1,50 @@
-name: Hellgram Desktop macOS
+name: Hellgram macOS
 
 on:
   workflow_dispatch:
   push:
-    paths:
-      - '.github/workflows/hellgram-mac.yml'
+    branches: [hellgram-mac]
 
-permissions:
-  contents: write
+concurrency:
+  group: hellgram-mac-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   macos:
-    name: MacOS
+    name: Hellgram macOS (arm64)
     runs-on: macos-latest
-    timeout-minutes: 240
     env:
-      REPO_NAME: hellgram-desktop
-      PREPARE_PATH: Telegram/build/prepare/prepare.py
+      UPLOAD_ARTIFACT: "true"
+      ONLY_CACHE: "false"
+      PREPARE_PATH: "Telegram/build/prepare/prepare.py"
     steps:
-      - uses: actions/checkout@v4
+      - name: Get repository name.
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - name: Clone.
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           path: ${{ env.REPO_NAME }}
 
-      - name: Setup
+      - name: First set up.
         run: |
           sudo chown -R `whoami`:admin /usr/local/share
           brew update
           brew install automake libtool meson nasm ninja pkg-config
-          sudo mdutil -a -i off
           sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          sudo sed -i '' '/CMAKE_${lang}_FLAGS_DEBUG_INIT/s/ -g//' /opt/homebrew/share/cmake/Modules/Compiler/GNU.cmake
+          xcodebuild -downloadPlatform macOS
+          # silence xcodebuild warnings
+          mkdir -p Files/Library || true
 
-      - name: Libraries cache
+      - name: Ccache.
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.OS }}-hellgram-ccache
+          max-size: 5G
+
+      - name: Libraries cache.
         uses: actions/cache@v4
         with:
           path: |
@@ -40,38 +53,44 @@ jobs:
           key: ${{ runner.OS }}-libs-${{ hashFiles(format('{0}/{1}', env.REPO_NAME, env.PREPARE_PATH)) }}
           restore-keys: ${{ runner.OS }}-libs-
 
-      - name: Libraries
-        run: ./${{ env.REPO_NAME }}/Telegram/build/prepare/mac.sh skip-release silent
-
-      - name: Build
+      - name: Libraries.
         run: |
-          cd ${{ env.REPO_NAME }}/Telegram
+          ./$REPO_NAME/Telegram/build/prepare/mac.sh silent
+
+      - name: Free up disk space.
+        run: find Libraries '(' '(' ! '(' -name '*.a' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -name '*.pc' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -perm +111 ')' -type f ')' -o -empty ')' -delete
+
+      - name: Build Hellgram.
+        if: env.ONLY_CACHE == 'false'
+        run: |
+          cd $REPO_NAME/Telegram
           ./configure.sh \
-          -D CMAKE_CONFIGURATION_TYPES=Debug \
+          -D CMAKE_CONFIGURATION_TYPES=Release \
           -D CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
-          -D TDESKTOP_API_TEST=ON \
+          -D TDESKTOP_API_ID=38159064 \
+          -D TDESKTOP_API_HASH=d0372642fc663849324f887acf9a64c5 \
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON \
           -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON
-          cmake --build ../out --config Debug --parallel
 
-      - name: Package
-        run: |
-          cd ${{ env.REPO_NAME }}/out/Debug
-          ditto -c -k --sequesterRsrc --keepParent Telegram.app "$RUNNER_TEMP/hellgram-desktop-macos.zip"
-          ls -la "$RUNNER_TEMP/hellgram-desktop-macos.zip"
+          cmake --build ../out --config Release --parallel
 
-      - name: Publish draft release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Ad-hoc sign.
         run: |
-          gh release create hellgram-mac-latest \
-            --repo "$GITHUB_REPOSITORY" \
-            --draft \
-            --title "Hellgram Desktop macOS" \
-            --target "$GITHUB_SHA" \
-            --notes "native macOS build from tdesktop ($GITHUB_SHA); stock Telegram Desktop, feature ports follow" 2>/dev/null || true
-          gh release upload hellgram-mac-latest \
-            --repo "$GITHUB_REPOSITORY" \
-            --clobber \
-            "$RUNNER_TEMP/hellgram-desktop-macos.zip"
-          gh release edit hellgram-mac-latest --repo "$GITHUB_REPOSITORY" --draft=false
+          cd $REPO_NAME/out/Release
+          codesign --force --deep --sign - Telegram.app || true
+
+      - name: Move artifact.
+        run: |
+          cd $REPO_NAME/out/Release
+          mkdir artifact
+          mv Telegram.app artifact/Hellgram.app
+          cd artifact
+          zip -qry Hellgram-mac-arm64.zip Hellgram.app
+
+      - name: Upload artifact.
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hellgram-mac-arm64
+          path: ${{ env.REPO_NAME }}/out/Release/artifact/Hellgram-mac-arm64.zip
+          if-no-files-found: error
+          retention-days: 30
