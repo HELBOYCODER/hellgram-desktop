@@ -47,17 +47,17 @@ jobs:
         run: |
           cd ${{ env.REPO_NAME }}/Telegram
           ./configure.sh \
-          -D CMAKE_CONFIGURATION_TYPES=Release \
+          -D CMAKE_CONFIGURATION_TYPES=Debug \
           -D CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
           -D TDESKTOP_API_ID=38159064 \
           -D TDESKTOP_API_HASH=d0372642fc663849324f887acf9a64c5 \
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON \
           -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON
-          cmake --build ../out --config Release --parallel
+          cmake --build ../out --config Debug --parallel
 
       - name: Bundle Hellboy Tunnel engine (Aether).
         run: |
-          cd ${{ env.REPO_NAME }}/out/Release
+          cd ${{ env.REPO_NAME }}/out/Debug
           curl -sL -o aether-arm64.tar.gz https://github.com/CluvexStudio/Aether/releases/download/v2.1.0/aether-macos-arm64.tar.gz
           curl -sL -o aether-x64.tar.gz https://github.com/CluvexStudio/Aether/releases/download/v2.1.0/aether-macos-x86_64.tar.gz
           mkdir -p eng
