@@ -1,0 +1,77 @@
+name: Hellgram Desktop macOS
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/hellgram-mac.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    name: MacOS
+    runs-on: macos-latest
+    timeout-minutes: 240
+    env:
+      REPO_NAME: hellgram-desktop
+      PREPARE_PATH: Telegram/build/prepare/prepare.py
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          path: ${{ env.REPO_NAME }}
+
+      - name: Setup
+        run: |
+          sudo chown -R `whoami`:admin /usr/local/share
+          brew update
+          brew install automake libtool meson nasm ninja pkg-config
+          sudo mdutil -a -i off
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Libraries cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            Libraries
+            ThirdParty
+          key: ${{ runner.OS }}-libs-${{ hashFiles(format('{0}/{1}', env.REPO_NAME, env.PREPARE_PATH)) }}
+          restore-keys: ${{ runner.OS }}-libs-
+
+      - name: Libraries
+        run: ./${{ env.REPO_NAME }}/Telegram/build/prepare/mac.sh skip-release silent
+
+      - name: Build
+        run: |
+          cd ${{ env.REPO_NAME }}/Telegram
+          ./configure.sh \
+          -D CMAKE_CONFIGURATION_TYPES=Debug \
+          -D CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
+          -D TDESKTOP_API_TEST=ON \
+          -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON \
+          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON
+          cmake --build ../out --config Debug --parallel
+
+      - name: Package
+        run: |
+          cd ${{ env.REPO_NAME }}/out/Debug
+          ditto -c -k --sequesterRsrc --keepParent Telegram.app "$RUNNER_TEMP/hellgram-desktop-macos.zip"
+          ls -la "$RUNNER_TEMP/hellgram-desktop-macos.zip"
+
+      - name: Publish draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create hellgram-mac-latest \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft \
+            --title "Hellgram Desktop macOS" \
+            --target "$GITHUB_SHA" \
+            --notes "native macOS build from tdesktop ($GITHUB_SHA); stock Telegram Desktop, feature ports follow" 2>/dev/null || true
+          gh release upload hellgram-mac-latest \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber \
+            "$RUNNER_TEMP/hellgram-desktop-macos.zip"
+          gh release edit hellgram-mac-latest --repo "$GITHUB_REPOSITORY" --draft=false
