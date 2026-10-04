@@ -58,18 +58,20 @@ jobs:
       - name: Bundle Hellboy Tunnel engine (Aether).
         run: |
           cd ${{ env.REPO_NAME }}/out/Debug
+          APP=$(find . -maxdepth 1 -name "Telegram.app" -o -maxdepth 1 -name "Hellgram.app" | head -1 | xargs basename)
+          mv "$APP" Hellgram.app
           curl -sL -o aether-arm64.tar.gz https://github.com/CluvexStudio/Aether/releases/download/v2.1.0/aether-macos-arm64.tar.gz
           curl -sL -o aether-x64.tar.gz https://github.com/CluvexStudio/Aether/releases/download/v2.1.0/aether-macos-x86_64.tar.gz
           mkdir -p eng
           tar xzf aether-arm64.tar.gz -C eng
           tar xzf aether-x64.tar.gz -C eng || true
           ENGINE=$(find eng -name aether -type f | head -1)
-          mkdir -p Hellgram.app/Contents/MacOS
           cp "$ENGINE" Hellgram.app/Contents/MacOS/hellboy-engine
           chmod +x Hellgram.app/Contents/MacOS/hellboy-engine
           printf '#!/bin/bash\nDIR="$(cd "$(dirname "$0")" \&\& pwd)"\nexec "$DIR/hellboy-engine" --bind 127.0.0.1:1819 -4 --masque --turbo --noize firewall\n' > Hellgram.app/Contents/MacOS/hellboy-tunnel
           chmod +x Hellgram.app/Contents/MacOS/hellboy-tunnel
           codesign --force --sign - Hellgram.app/Contents/MacOS/hellboy-engine || true
+          codesign --force --sign - Hellgram.app || true
           rm -rf eng aether-arm64.tar.gz aether-x64.tar.gz
 
       - name: Package
