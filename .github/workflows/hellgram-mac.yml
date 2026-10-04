@@ -70,14 +70,13 @@ jobs:
           chmod +x Hellgram.app/Contents/MacOS/hellboy-engine
           printf '#!/bin/bash\nDIR="$(cd "$(dirname "$0")" \&\& pwd)"\nexec "$DIR/hellboy-engine" --bind 127.0.0.1:1819 -4 --masque --turbo --noize firewall\n' > Hellgram.app/Contents/MacOS/hellboy-tunnel
           chmod +x Hellgram.app/Contents/MacOS/hellboy-tunnel
-          codesign --force --sign - Hellgram.app/Contents/MacOS/hellboy-engine || true
-          codesign --force --sign - Hellgram.app || true
+          codesign --force --deep --sign - Hellgram.app || true
           rm -rf eng aether-arm64.tar.gz aether-x64.tar.gz
 
       - name: Package
         run: |
           cd ${{ env.REPO_NAME }}/out/Debug
-          ditto -c -k --sequesterRsrc --keepParent Telegram.app "$RUNNER_TEMP/Hellgram-mac-arm64.zip"
+          ditto -c -k --sequesterRsrc --keepParent Hellgram.app "$RUNNER_TEMP/Hellgram-mac-arm64.zip"
           ls -la "$RUNNER_TEMP/Hellgram-mac-arm64.zip"
 
       - name: Publish draft release
