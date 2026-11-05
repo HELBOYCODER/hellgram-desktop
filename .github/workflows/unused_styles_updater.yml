@@ -24,7 +24,7 @@ jobs:
         # "Set up job", so the import can be fixed in place before it runs.
         # Remove this step when upstream fixes the import.
         run: |
-          file="${GITHUB_WORKSPACE}/../_actions/desktop-app/action_code_updater/master/index.mjs"
+          file="${GITHUB_WORKSPACE}/../../_actions/desktop-app/action_code_updater/master/index.mjs"
           sed -i 's/^import simpleGit from "simple-git";$/import { simpleGit } from "simple-git";/' "$file"
           grep -n "simple-git" "$file"
       - uses: desktop-app/action_code_updater@master
