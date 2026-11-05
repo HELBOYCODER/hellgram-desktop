@@ -6,11 +6,16 @@ on:
   schedule:
     # At 00:00 on day-of-month 1.
     - cron: "0 0 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   User-agent:
     runs-on: ubuntu-latest
     steps:
-      - uses: desktop-app/action_code_updater@master
+      - uses: desktop-app/action_code_updater@5f85512cf8e8f15cfbde4a10cb29208bcc3d3e52
         with:
           type: "user-agent"
