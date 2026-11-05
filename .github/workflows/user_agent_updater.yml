@@ -16,6 +16,18 @@ jobs:
   User-agent:
     runs-on: ubuntu-latest
     steps:
-      - uses: desktop-app/action_code_updater@5f85512cf8e8f15cfbde4a10cb29208bcc3d3e52
+      - name: Work around upstream simple-git ESM import bug
+        # Temporary workaround: desktop-app/action_code_updater@master imports
+        # simple-git with a default import, but the current simple-git ESM
+        # build has no default export, so the action fails at startup with
+        # "SyntaxError: The requested module 'simple-git' does not provide
+        # an export named 'default'". The action is downloaded during
+        # "Set up job", so the import can be fixed in place before it runs.
+        # Remove this step when upstream fixes the import.
+        run: |
+          file="${GITHUB_WORKSPACE}/../../_actions/desktop-app/action_code_updater/master/index.mjs"
+          sed -i 's/^import simpleGit from "simple-git";$/import { simpleGit } from "simple-git";/' "$file"
+          grep -n "simple-git" "$file"
+      - uses: desktop-app/action_code_updater@master
         with:
           type: "user-agent"
